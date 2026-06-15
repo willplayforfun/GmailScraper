@@ -9,11 +9,12 @@ scraping, corpus building, ML categorization of incoming mail, etc.
 
 This spec is the source of truth for the initial implementation. Anything not
 specified here is the implementer's call, but the implementer should flag
-non-obvious decisions in code comments.
+non-obvious decisions in code comments. Anything that warrants a serious decision should be escalated to the user overseeing the implementing agent.
 
 ## Scope
 
 **In scope (this implementation):**
+
 - OAuth 2.0 setup against the Gmail API.
 - Two-phase fetch: enumerate all message IDs, then fetch each message.
 - Persist raw RFC822 bytes as `.eml` files on disk (sharded directory layout).
@@ -24,6 +25,7 @@ non-obvious decisions in code comments.
   and the SQLite database.
 
 **Out of scope (explicitly deferred):**
+
 - Attachments. Skip them entirely. Do not download or store attachment payloads.
 - Incremental sync via `users.history.list`. The schema must support it later
   (store `history_id` and a `sync_state` row for the max seen), but the
@@ -39,12 +41,12 @@ The tool runs as a Docker container. The implementer should produce a
 
 **Mount points (host → container):**
 
-| Host path (example)   | Container path     | Purpose                                |
-|-----------------------|--------------------|----------------------------------------|
-| `./config`            | `/config`          | OAuth `credentials.json`, saved `token.json`, `.env`. |
-| `./data/raw`          | `/data/raw`        | Sharded `.eml` files.                  |
-| `./data/db`           | `/data/db`         | The SQLite database file.              |
-| `./logs`              | `/logs`            | Run logs.                              |
+| Host path (example) | Container path | Purpose                                               |
+| ------------------- | -------------- | ----------------------------------------------------- |
+| `./config`          | `/config`      | OAuth `credentials.json`, saved `token.json`, `.env`. |
+| `./data/raw`        | `/data/raw`    | Sharded `.eml` files.                                 |
+| `./data/db`         | `/data/db`     | The SQLite database file.                             |
+| `./logs`            | `/logs`        | Run logs.                                             |
 
 The container must NOT bake credentials in. `credentials.json` is mounted in;
 `token.json` is written on first run via an OAuth flow and persisted to the
@@ -53,8 +55,7 @@ mounted config volume so subsequent runs reuse it.
 **OAuth flow consideration:** the initial consent flow requires a browser
 redirect. The implementer should use the `InstalledAppFlow` "console" /
 out-of-band flow, OR document a one-time host-side bootstrap step (run a small
-script on the host to produce `token.json`, then drop it in `./config`). Either
-is fine; pick one and document it in the README.
+script on the host to produce `token.json`, then drop it in `./config`). Ask the user to choose one while implementing - present pros and cons.
 
 **Compose example the implementer should produce:**
 
@@ -210,6 +211,7 @@ CREATE VIRTUAL TABLE messages_fts USING fts5(
 The implementer should add a tiny migration runner so v2 is straightforward.
 
 **SQLite pragmas to set on every connection:**
+
 ```
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous  = NORMAL;
