@@ -1,0 +1,42 @@
+name: Debug build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug-windows:
+    name: Build Windows debug exe
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install `
+            pyinstaller `
+            customtkinter `
+            google-api-python-client `
+            google-auth `
+            google-auth-oauthlib `
+            google-auth-httplib2
+
+      - name: Build debug exe
+        env:
+          DEBUG_BUILD: "1"
+        run: pyinstaller gmail_scraper_gui.spec
+
+      - name: Upload debug artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GmailScraper-debug
+          path: dist/GmailScraper-debug.exe
+          retention-days: 14
