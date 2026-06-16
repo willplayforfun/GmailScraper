@@ -415,7 +415,6 @@ class SettingsDialog(ctk.CTkToplevel):
     def __init__(self, parent, settings: Settings, on_sign_out) -> None:
         super().__init__(parent)
         self.title("Settings")
-        self.geometry("480x540")
         self.resizable(False, False)
         self.grab_set()
 
@@ -426,6 +425,10 @@ class SettingsDialog(ctk.CTkToplevel):
         self._build_ui()
         self._snapshot()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        self.update_idletasks()
+        scale = ctk.ScalingTracker.get_window_scaling(self)
+        self.geometry(f"480x{round(self.winfo_reqheight() / scale)}")
 
     # ── dirty tracking ────────────────────────────────────────────────────────
 
