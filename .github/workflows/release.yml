@@ -34,83 +34,10 @@ jobs:
       - name: Build exe
         run: pyinstaller gmail_scraper_gui.spec
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: GmailScraper-windows
-          path: dist/GmailScraper.exe
-
       - name: Create GitHub Release
-        uses: softproj/github-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/GmailScraper.exe
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-macos:
-    name: Build macOS binary (best-effort)
-    runs-on: macos-latest
-    continue-on-error: true
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install \
-            pyinstaller \
-            customtkinter \
-            google-api-python-client \
-            google-auth \
-            google-auth-oauthlib \
-            google-auth-httplib2
-
-      - name: Build binary
-        run: pyinstaller gmail_scraper_gui.spec
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: GmailScraper-mac
-          path: dist/GmailScraper
-
-  build-linux:
-    name: Build Linux binary (best-effort)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install system tkinter
-        run: sudo apt-get install -y python3-tk
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install \
-            pyinstaller \
-            customtkinter \
-            google-api-python-client \
-            google-auth \
-            google-auth-oauthlib \
-            google-auth-httplib2
-
-      - name: Build binary
-        run: pyinstaller gmail_scraper_gui.spec
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: GmailScraper-linux
-          path: dist/GmailScraper
