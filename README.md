@@ -2,6 +2,8 @@
 
 Bulk-export a Gmail account to a local SQLite database and sharded `.eml` files.
 
+![Gmail Scraper screenshot](resources/screenshot.png)
+
 ## Running from Source
 
 Requires Python 3.12+. Start by cloning the repo.
@@ -73,7 +75,7 @@ You need a Google Cloud project with the Gmail API enabled and an OAuth 2.0 cred
 3. After enabling, click **Create Credentials**. The wizard will guide you through the process — select **OAuth client ID** when prompted.
 4. Choose **Desktop app** as the application type. Give it any name and click **Create**.
 5. Download the resulting JSON file and save it as `credentials.json`. The GUI will ask you to browse for it on first launch; for the CLI, place it at `data/config/credentials.json`.
-
+6. Go to OAuth consent screen -> Audience -> Test users and add yourself.
 Google may ask you to configure an OAuth consent screen before letting you create credentials. Set it to **Internal** if your Google account is part of a Workspace org, or **External** with yourself as a test user if it's a personal Gmail account.
 
 ---
