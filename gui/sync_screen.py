@@ -24,6 +24,35 @@ _STATS_MS = 5000
 _MAX_LOG_LINES = 500
 
 
+class _Tooltip:
+    """Simple hover tooltip for any tkinter widget."""
+
+    def __init__(self, widget: tk.Widget, text: str) -> None:
+        self._widget = widget
+        self._text = text
+        self._tw: tk.Toplevel | None = None
+        widget.bind("<Enter>", self._show)
+        widget.bind("<Leave>", self._hide)
+
+    def _show(self, _event=None) -> None:
+        x = self._widget.winfo_rootx() + 0
+        y = self._widget.winfo_rooty() + self._widget.winfo_height() + 4
+        self._tw = tk.Toplevel(self._widget)
+        self._tw.wm_overrideredirect(True)
+        self._tw.wm_geometry(f"+{x}+{y}")
+        lbl = tk.Label(
+            self._tw, text=self._text, justify="left",
+            background="#ffffe0", relief="solid", borderwidth=1,
+            font=("Segoe UI", 9), padx=6, pady=3,
+        )
+        lbl.pack()
+
+    def _hide(self, _event=None) -> None:
+        if self._tw:
+            self._tw.destroy()
+            self._tw = None
+
+
 def _log_colors() -> dict:
     dark = ctk.get_appearance_mode() == "Dark"
     return {
@@ -46,7 +75,8 @@ class SyncScreen(ctk.CTkFrame):
         self._worker: Worker | None = None
         self._event_queue: queue.Queue = queue.Queue(maxsize=2000)
         self._log_line_count = 0
-        self._total_queued = 0   # known total from fetch_queue
+        self._total_queued = 0
+        self._done_before = 0
 
         self._build_ui()
         self._poll_queue()
@@ -100,6 +130,7 @@ class SyncScreen(ctk.CTkFrame):
             btn_row, text="▶  Sync", command=lambda: self._start("run")
         )
         self._sync_btn.pack(side="left", expand=True, fill="x", padx=(0, 6))
+        _Tooltip(self._sync_btn, "Enumerate and then download all emails.")
 
         self._enum_btn = ctk.CTkButton(
             btn_row, text="Enumerate",
@@ -108,23 +139,16 @@ class SyncScreen(ctk.CTkFrame):
             command=lambda: self._start("enumerate"),
         )
         self._enum_btn.pack(side="left", padx=(0, 6))
+        _Tooltip(self._enum_btn, "Retrieve a list of all emails that can be downloaded.")
 
         self._fetch_btn = ctk.CTkButton(
-            btn_row, text="Fetch only",
+            btn_row, text="Download",
             fg_color="transparent", border_width=1,
             text_color=("gray10", "gray90"),
             command=lambda: self._start("fetch"),
         )
         self._fetch_btn.pack(side="left", padx=(0, 6))
-
-        self._stop_btn = ctk.CTkButton(
-            btn_row, text="Stop",
-            fg_color="transparent", border_width=1,
-            text_color=("red", "#ff453a"),
-            border_color=("red", "#ff453a"),
-            command=self._stop,
-        )
-        # Stop button hidden until running
+        _Tooltip(self._fetch_btn, "Download all enumerated emails.")
 
         # Progress area (hidden while idle)
         self._progress_frame = ctk.CTkFrame(body, fg_color="transparent")
@@ -133,12 +157,24 @@ class SyncScreen(ctk.CTkFrame):
         self._progress_bar.pack(fill="x")
         self._progress_bar.set(0)
 
+        status_row = ctk.CTkFrame(self._progress_frame, fg_color="transparent")
+        status_row.pack(fill="x", pady=(4, 0))
+
+        self._stop_btn = ctk.CTkButton(
+            status_row, text="⏹", width=32, height=32,
+            fg_color="transparent", hover_color=("gray80", "gray25"),
+            text_color=("red", "#ff453a"),
+            font=ctk.CTkFont(size=16),
+            command=self._stop,
+        )
+        self._stop_btn.pack(side="left")
+
         self._rate_label = ctk.CTkLabel(
-            self._progress_frame, text="",
+            status_row, text="",
             font=ctk.CTkFont(size=12), text_color=("gray45", "gray60"),
             anchor="e",
         )
-        self._rate_label.pack(fill="x", pady=(4, 0))
+        self._rate_label.pack(side="left", fill="x", expand=True)
 
         # Log panel — use tk.Text for per-line colour support
         log_frame = ctk.CTkFrame(body, fg_color="transparent")
@@ -190,6 +226,7 @@ class SyncScreen(ctk.CTkFrame):
     def _start(self, mode: str) -> None:
         if self._worker and self._worker.is_running():
             return
+        self._done_before = self._query_done_count()
         self._set_running(True, mode)
         self._worker = Worker(self._event_queue, self.settings, mode=mode)
         self._worker.start()
@@ -197,7 +234,7 @@ class SyncScreen(ctk.CTkFrame):
     def _stop(self) -> None:
         if self._worker:
             self._worker.stop()
-        self._stop_btn.configure(state="disabled", text="Stopping…")
+        self._stop_btn.configure(state="disabled", text="⏳")
 
     def _set_running(self, running: bool, mode: str = "") -> None:
         state = "disabled" if running else "normal"
@@ -207,15 +244,12 @@ class SyncScreen(ctk.CTkFrame):
         self._fetch_btn.configure(state=state)
 
         if running:
-            self._stop_btn.configure(state="normal", text="Stop")
-            self._stop_btn.pack(side="left")
+            self._stop_btn.configure(state="normal", text="⏹")
             self._progress_frame.pack(fill="x", pady=(0, 8))
-            # Start indeterminate until we know totals
             self._progress_bar.configure(mode="indeterminate")
             self._progress_bar.start()
             self._rate_label.configure(text="")
         else:
-            self._stop_btn.pack_forget()
             self._progress_frame.pack_forget()
             self._progress_bar.stop()
             self._rate_label.configure(text="")
@@ -238,14 +272,28 @@ class SyncScreen(ctk.CTkFrame):
         elif t == "done":
             self._set_running(False)
             self._refresh_stats()
-            self._append_log_line("✓ Sync finished.", level="INFO")
+            new_count = self._query_done_count() - getattr(self, "_done_before", 0)
+            if event.get("stopped"):
+                self._append_log_line(
+                    f"Sync stopped. {new_count:,} new emails fetched.", level="WARNING"
+                )
+            else:
+                self._append_log_line(
+                    f"✓ Sync finished. {new_count:,} new emails fetched.", level="INFO"
+                )
         elif t == "error":
             self._set_running(False)
             self._refresh_stats()
             self._append_log_line(f"Worker error:\n{event['exc']}", level="ERROR")
 
     def _on_log(self, record: logging.LogRecord) -> None:
-        # Extract progress fields if present
+        # Enumeration progress
+        enumerated = getattr(record, "enumerated", None)
+        total_estimate = getattr(record, "total_estimate", None)
+        if enumerated is not None and total_estimate:
+            self._update_enum_progress(enumerated, total_estimate)
+
+        # Fetch progress
         done = getattr(record, "done", None)
         pending = getattr(record, "pending", None)
         if done is not None and pending is not None:
@@ -261,6 +309,15 @@ class SyncScreen(ctk.CTkFrame):
         level = record.levelname
         msg = record.getMessage()
         self._append_log_line(f"{ts}  [{level:<7}]  {msg}", level=level, ts_end=10)
+
+    def _update_enum_progress(self, enumerated: int, total_estimate: int) -> None:
+        if total_estimate > 0:
+            self._progress_bar.stop()
+            self._progress_bar.configure(mode="determinate")
+            self._progress_bar.set(min(enumerated / total_estimate, 1.0))
+        self._rate_label.configure(
+            text=f"Enumerating… {enumerated:,} / ~{total_estimate:,} IDs"
+        )
 
     def _update_progress(self, done: int, total: int, rate: float, eta: int) -> None:
         if total > 0:
@@ -308,6 +365,20 @@ class SyncScreen(ctk.CTkFrame):
 
     # ── stats polling ─────────────────────────────────────────────────────────
 
+    def _query_done_count(self) -> int:
+        db = self.settings.db_path()
+        if not db.exists():
+            return 0
+        try:
+            conn = sqlite3.connect(str(db))
+            row = conn.execute(
+                "SELECT COUNT(*) FROM fetch_queue WHERE status = 'done'"
+            ).fetchone()
+            conn.close()
+            return row[0] if row else 0
+        except Exception:
+            return 0
+
     def _refresh_stats(self) -> None:
         db = self.settings.db_path()
         if not db.exists():
@@ -344,29 +415,84 @@ class SettingsDialog(ctk.CTkToplevel):
     def __init__(self, parent, settings: Settings, on_sign_out) -> None:
         super().__init__(parent)
         self.title("Settings")
-        self.geometry("480x420")
+        self.geometry("480x540")
         self.resizable(False, False)
-        self.grab_set()  # modal
+        self.grab_set()
 
         self.settings = settings
         self.on_sign_out = on_sign_out
+        self._dirty = False
 
         self._build_ui()
+        self._snapshot()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    # ── dirty tracking ────────────────────────────────────────────────────────
+
+    def _snapshot(self) -> None:
+        self._saved = {
+            "dir":   self._dir_var.get(),
+            "batch": self._batch_var.get(),
+            "conc":  self._conc_var.get(),
+            "spam":  self._spam_var.get(),
+        }
+        self._dirty = False
+        self._update_banner()
+
+    def _check_dirty(self, *_) -> None:
+        dirty = (
+            self._dir_var.get()  != self._saved["dir"]   or
+            self._batch_var.get() != self._saved["batch"] or
+            self._conc_var.get()  != self._saved["conc"]  or
+            self._spam_var.get()  != self._saved["spam"]
+        )
+        if dirty != self._dirty:
+            self._dirty = dirty
+            self._update_banner()
+
+    def _update_banner(self) -> None:
+        if self._dirty:
+            self._banner_inner.place(relx=0, rely=0, relwidth=1, relheight=1)
+        else:
+            self._banner_inner.place_forget()
+
+    # ── UI construction ───────────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
         pad = {"padx": 20, "pady": 6}
 
-        # Data directory
+        # ── Save banner (always reserves 44px; content shown only when dirty) ──
+        banner_slot = ctk.CTkFrame(self, height=44, corner_radius=0,
+                                   fg_color="transparent")
+        banner_slot.pack(fill="x")
+        banner_slot.pack_propagate(False)
+
+        self._banner_inner = ctk.CTkFrame(
+            banner_slot, corner_radius=0,
+            fg_color=("#dbeafe", "#1e3a5f"),
+        )
+        ctk.CTkLabel(
+            self._banner_inner, text="You have unsaved changes",
+            font=ctk.CTkFont(size=12), text_color=("gray25", "gray80"),
+        ).pack(side="left", padx=16)
+        ctk.CTkButton(
+            self._banner_inner, text="Save", width=80,
+            command=self._save,
+        ).pack(side="right", padx=10, pady=6)
+        # Not placed until dirty
+
+        # ── Data directory ────────────────────────────────────────────────────
         ctk.CTkLabel(self, text="Data directory", font=ctk.CTkFont(weight="bold"),
                      anchor="w").pack(fill="x", **pad)
 
         dir_row = ctk.CTkFrame(self, fg_color="transparent")
         dir_row.pack(fill="x", padx=20, pady=(0, 6))
 
-        self._dir_entry = ctk.CTkEntry(dir_row, placeholder_text="default (data/ next to exe)")
+        self._dir_var = ctk.StringVar(value=self.settings.data_dir or "")
+        self._dir_var.trace_add("write", self._check_dirty)
+        self._dir_entry = ctk.CTkEntry(dir_row, textvariable=self._dir_var,
+                                       placeholder_text="default (data/ next to exe)")
         self._dir_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        if self.settings.data_dir:
-            self._dir_entry.insert(0, self.settings.data_dir)
 
         ctk.CTkButton(dir_row, text="Browse…", width=90,
                       command=self._browse_dir).pack(side="left")
@@ -375,52 +501,48 @@ class SettingsDialog(ctk.CTkToplevel):
                      font=ctk.CTkFont(size=11), text_color=("gray45", "gray55"),
                      anchor="w").pack(fill="x", padx=20, pady=(0, 12))
 
-        # Divider
         ctk.CTkFrame(self, height=1, fg_color=("gray80", "gray25")).pack(
             fill="x", padx=20, pady=4)
 
-        # Batch size
+        # ── Batch size ────────────────────────────────────────────────────────
         ctk.CTkLabel(self, text="Batch size (1–100)", anchor="w").pack(fill="x", **pad)
-        self._batch_entry = ctk.CTkEntry(self, width=80)
-        self._batch_entry.insert(0, str(self.settings.batch_size))
-        self._batch_entry.pack(anchor="w", padx=20, pady=(0, 6))
+        self._batch_var = ctk.StringVar(value=str(self.settings.batch_size))
+        self._batch_var.trace_add("write", self._check_dirty)
+        ctk.CTkEntry(self, textvariable=self._batch_var, width=80).pack(
+            anchor="w", padx=20, pady=(0, 6))
 
-        # Concurrency
+        # ── Concurrency ───────────────────────────────────────────────────────
         ctk.CTkLabel(self, text="Max concurrency (1–20)", anchor="w").pack(fill="x", **pad)
-        self._conc_entry = ctk.CTkEntry(self, width=80)
-        self._conc_entry.insert(0, str(self.settings.max_concurrency))
-        self._conc_entry.pack(anchor="w", padx=20, pady=(0, 6))
+        self._conc_var = ctk.StringVar(value=str(self.settings.max_concurrency))
+        self._conc_var.trace_add("write", self._check_dirty)
+        ctk.CTkEntry(self, textvariable=self._conc_var, width=80).pack(
+            anchor="w", padx=20, pady=(0, 6))
 
-        # Include spam/trash
+        # ── Include spam/trash ────────────────────────────────────────────────
         self._spam_var = ctk.BooleanVar(value=self.settings.include_spam_trash)
+        self._spam_var.trace_add("write", self._check_dirty)
         ctk.CTkCheckBox(self, text="Include spam and trash",
                         variable=self._spam_var).pack(anchor="w", padx=20, pady=6)
 
-        # Divider
         ctk.CTkFrame(self, height=1, fg_color=("gray80", "gray25")).pack(
             fill="x", padx=20, pady=8)
 
-        # Open data folder
+        # ── Actions ───────────────────────────────────────────────────────────
         ctk.CTkButton(self, text="Open data folder", fg_color="transparent",
                       border_width=1, text_color=("gray10", "gray90"),
                       command=self._open_data_folder).pack(fill="x", padx=20, pady=(0, 6))
 
-        # Sign out
         ctk.CTkButton(self, text="Sign out",
                       fg_color="transparent", border_width=1,
-                      text_color=("red", "#ff453a"),
-                      border_color=("red", "#ff453a"),
-                      command=self._sign_out).pack(fill="x", padx=20, pady=(0, 12))
+                      text_color=("red", "#ff453a"), border_color=("red", "#ff453a"),
+                      command=self._sign_out).pack(fill="x", padx=20, pady=(0, 20))
 
-        # Save
-        ctk.CTkButton(self, text="Save", command=self._save).pack(
-            fill="x", padx=20, pady=(0, 20))
+    # ── actions ───────────────────────────────────────────────────────────────
 
     def _browse_dir(self) -> None:
         path = fd.askdirectory(title="Select data directory")
         if path:
-            self._dir_entry.delete(0, "end")
-            self._dir_entry.insert(0, path)
+            self._dir_var.set(path)
 
     def _open_data_folder(self) -> None:
         folder = self.settings.data_root()
@@ -432,18 +554,34 @@ class SettingsDialog(ctk.CTkToplevel):
         else:
             subprocess.Popen(["xdg-open", str(folder)])
 
+    def _on_close(self) -> None:
+        if not self._dirty:
+            self.destroy()
+            return
+        answer = mb.askyesnocancel(
+            "Unsaved changes",
+            "You have unsaved changes. Save before closing?",
+            parent=self,
+        )
+        if answer is None:   # Cancel — stay open
+            return
+        if answer:           # Yes — save then close
+            self._save()
+        else:                # No — discard and close
+            self.destroy()
+
     def _save(self) -> None:
-        dir_val = self._dir_entry.get().strip() or None
+        dir_val = self._dir_var.get().strip() or None
 
         try:
-            batch = int(self._batch_entry.get())
+            batch = int(self._batch_var.get())
             assert 1 <= batch <= 100
         except (ValueError, AssertionError):
             mb.showerror("Invalid value", "Batch size must be between 1 and 100.", parent=self)
             return
 
         try:
-            conc = int(self._conc_entry.get())
+            conc = int(self._conc_var.get())
             assert 1 <= conc <= 20
         except (ValueError, AssertionError):
             mb.showerror("Invalid value", "Max concurrency must be between 1 and 20.", parent=self)

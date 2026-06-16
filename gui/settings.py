@@ -19,8 +19,8 @@ def exe_dir() -> Path:
 @dataclass
 class Settings:
     data_dir: str | None = None          # None → default (exe_dir/data)
-    batch_size: int = 100
-    max_concurrency: int = 5
+    batch_size: int = 50
+    max_concurrency: int = 1
     include_spam_trash: bool = False
     email: str = ""                      # cached after first successful auth
 
@@ -47,7 +47,7 @@ class Settings:
 
     @classmethod
     def settings_path(cls) -> Path:
-        return exe_dir() / "GmailScraper.settings.json"
+        return exe_dir() / "settings.json"
 
     @classmethod
     def load(cls) -> "Settings":

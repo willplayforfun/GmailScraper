@@ -106,10 +106,11 @@ class SetupScreen(ctk.CTkFrame):
         picker.pack(fill="x", pady=(12, 0))
 
         self._file_label = ctk.CTkLabel(
-            picker, text="No file selected",
+            picker, text="No file selected", width=240,
             text_color=("gray50", "gray55"), font=ctk.CTkFont(size=12),
+            anchor="w",
         )
-        self._file_label.pack(side="left", padx=12, pady=10, expand=True, anchor="w")
+        self._file_label.pack(side="left", padx=12, pady=10, anchor="w")
 
         ctk.CTkButton(
             picker, text="Browse…", width=90,
@@ -124,22 +125,10 @@ class SetupScreen(ctk.CTkFrame):
         self._signin_btn.pack(fill="x", pady=(14, 0))
 
     def _build_needs_auth(self) -> None:
-        f = self._steps_frame
-
-        creds_path = self.settings.config_dir() / "credentials.json"
-        status = f"credentials.json found at:\n{creds_path}" if creds_path.exists() else \
-                 "credentials.json not found — go back and add it."
-
-        ctk.CTkLabel(f, text=status, font=ctk.CTkFont(size=12),
-                     text_color=("gray40", "gray65"), justify="center",
-                     wraplength=400).pack(pady=(0, 16))
-
-        self._signin_btn = ctk.CTkButton(
-            f, text="Sign in with Google",
-            state="normal" if creds_path.exists() else "disabled",
-            command=self._start_auth,
-        )
-        self._signin_btn.pack(fill="x")
+        self._build_needs_credentials()
+        self._file_label.configure(text="credentials.json",
+                                   text_color=("gray20", "gray90"))
+        self._signin_btn.configure(state="normal")
 
     def _build_waiting(self) -> None:
         f = self._steps_frame
@@ -203,8 +192,10 @@ class SetupScreen(ctk.CTkFrame):
         dest = self.settings.config_dir()
         dest.mkdir(parents=True, exist_ok=True)
         shutil.copy(path, dest / "credentials.json")
-        self._file_label.configure(text=Path(path).name,
-                                   text_color=("gray20", "gray90"))
+        name = Path(path).name
+        if len(name) > 34:
+            name = name[:15] + "…" + name[-16:]
+        self._file_label.configure(text=name, text_color=("gray20", "gray90"))
         self._signin_btn.configure(state="normal")
         self._status_label.configure(text="")
 

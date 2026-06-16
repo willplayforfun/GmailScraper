@@ -48,7 +48,37 @@ class App(ctk.CTk):
         self.settings = Settings.load()
         self._screen: ctk.CTkFrame | None = None
 
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._route()
+
+    def _on_close(self) -> None:
+        from .sync_screen import SyncScreen
+        if isinstance(self._screen, SyncScreen) and self._screen._worker:
+            worker = self._screen._worker
+            if worker.is_running():
+                worker.stop()
+                self._show_closing_overlay()
+                self._wait_for_worker(worker)
+                return
+        self.destroy()
+
+    def _show_closing_overlay(self) -> None:
+        import customtkinter as ctk
+        overlay = ctk.CTkFrame(self, fg_color=("gray95", "gray10"), corner_radius=0)
+        overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
+        inner = ctk.CTkFrame(overlay, fg_color="transparent")
+        inner.place(relx=0.5, rely=0.5, anchor="center")
+        spinner = ctk.CTkProgressBar(inner, width=220, mode="indeterminate")
+        spinner.pack()
+        spinner.start()
+        ctk.CTkLabel(inner, text="Saving…", font=ctk.CTkFont(size=13),
+                     text_color=("gray40", "gray60")).pack(pady=(10, 0))
+
+    def _wait_for_worker(self, worker, interval_ms: int = 100) -> None:
+        if worker.is_running():
+            self.after(interval_ms, lambda: self._wait_for_worker(worker, interval_ms))
+        else:
+            self.destroy()
 
     def _route(self) -> None:
         state = _check_auth_state(self.settings)

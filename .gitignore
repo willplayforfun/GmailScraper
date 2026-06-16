@@ -23,6 +23,7 @@ htmlcov/
 config/
 data/
 logs/
+settings.json
 
 # Editor / OS
 .vscode/

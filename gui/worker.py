@@ -37,7 +37,9 @@ class Worker:
         import gmail_scraper.fetch as _fetch
         _fetch._SHUTDOWN = False
 
-        logging.getLogger().addHandler(self._handler)
+        pkg_logger = logging.getLogger("gmail_scraper")
+        pkg_logger.setLevel(logging.DEBUG)
+        pkg_logger.addHandler(self._handler)
         self._thread = threading.Thread(target=self._run, daemon=True, name="gmail-worker")
         self._thread.start()
 
@@ -68,6 +70,7 @@ class Worker:
                     config_dir=str(s.config_dir()),
                     db_path=str(s.db_path()),
                     include_spam_trash=s.include_spam_trash,
+                    stop_event=self._stop_event,
                 )
 
             if not self._stop_event.is_set() and self.mode in ("fetch", "run"):
@@ -77,11 +80,14 @@ class Worker:
                     raw_dir=str(s.raw_dir()),
                     batch_size=s.batch_size,
                     max_concurrency=s.max_concurrency,
+                    stop_event=self._stop_event,
                 )
 
-            self.q.put({"type": "done", "success": 0, "errors": 0})
+            self.q.put({"type": "done", "stopped": self._stop_event.is_set()})
 
         except Exception:
             self.q.put({"type": "error", "exc": traceback.format_exc()})
         finally:
-            logging.getLogger().removeHandler(self._handler)
+            pkg_logger = logging.getLogger("gmail_scraper")
+            pkg_logger.removeHandler(self._handler)
+            pkg_logger.setLevel(logging.NOTSET)
