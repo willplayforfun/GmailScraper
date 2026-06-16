@@ -196,7 +196,7 @@ def run_fetch(
             futures = {
                 pool.submit(
                     _process_batch,
-                    build("gmail", "v1", credentials=creds),
+                    build("gmail", "v1", credentials=creds, cache_discovery=False),
                     conn,
                     raw_dir,
                     chunk,

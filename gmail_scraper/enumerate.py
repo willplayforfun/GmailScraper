@@ -62,7 +62,7 @@ def run_enumerate(
     batch_size: int = 500,
 ) -> None:
     creds = load_credentials(config_dir)
-    service = build("gmail", "v1", credentials=creds)
+    service = build("gmail", "v1", credentials=creds, cache_discovery=False)
     conn = open_db(db_path)
 
     _refresh_labels(service, conn)

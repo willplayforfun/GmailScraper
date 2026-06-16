@@ -49,7 +49,7 @@ def verify_auth(config_dir: str) -> None:
     from googleapiclient.discovery import build
 
     creds = load_credentials(config_dir)
-    service = build("gmail", "v1", credentials=creds)
+    service = build("gmail", "v1", credentials=creds, cache_discovery=False)
     profile = service.users().getProfile(userId="me").execute()
     email = profile.get("emailAddress", "unknown")
     logger.info("Auth OK", extra={"email": email, "messages_total": profile.get("messagesTotal")})
