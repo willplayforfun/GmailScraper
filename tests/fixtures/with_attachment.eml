@@ -1,0 +1,21 @@
+From: Boss <boss@example.com>
+To: Employee <emp@example.com>
+Subject: Report attached
+Date: Wed, 03 Jan 2024 09:00:00 +0000
+Message-ID: <ghi789@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="bnd99"
+
+--bnd99
+Content-Type: text/plain; charset=utf-8
+
+Please find the report attached.
+
+--bnd99
+Content-Type: application/pdf
+Content-Disposition: attachment; filename="report.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQK
+
+--bnd99--

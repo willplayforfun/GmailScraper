@@ -1,0 +1,9 @@
+From: Alice Example <alice@example.com>
+To: Bob Example <bob@example.com>
+Subject: Hello world
+Date: Mon, 01 Jan 2024 12:00:00 +0000
+Message-ID: <abc123@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+This is a plain text email body.

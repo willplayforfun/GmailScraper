@@ -1,0 +1,16 @@
+services:
+  scraper:
+    build: .
+    volumes:
+      - ./config:/config
+      - ./data/raw:/data/raw
+      - ./data/db:/data/db
+      - ./logs:/logs
+    environment:
+      - CONFIG_DIR=/config
+      - RAW_DIR=/data/raw
+      - DB_PATH=/data/db/gmail.sqlite
+      - LOG_DIR=/logs
+      - INCLUDE_SPAM_TRASH=false
+      - BATCH_SIZE=100
+      - MAX_CONCURRENCY=5

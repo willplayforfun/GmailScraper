@@ -1,0 +1,20 @@
+From: Sender Name <sender@example.com>
+To: Recipient One <r1@example.com>, Recipient Two <r2@example.com>
+Cc: CC Person <cc@example.com>
+Subject: =?utf-8?q?Caf=C3=A9_newsletter?=
+Date: Tue, 02 Jan 2024 08:30:00 +0000
+Message-ID: <def456@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="boundary42"
+
+--boundary42
+Content-Type: text/plain; charset=utf-8
+
+Café newsletter plain text.
+
+--boundary42
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Café newsletter <b>HTML</b>.</p></body></html>
+
+--boundary42--
