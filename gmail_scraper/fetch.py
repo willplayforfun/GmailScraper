@@ -173,8 +173,8 @@ def run_fetch(
     config_dir: str,
     db_path: str,
     raw_dir: str,
-    batch_size: int = 50,
-    max_concurrency: int = 1,
+    batch_size: int = 7,
+    max_concurrency: int = 3,
     progress_every: int = 500,
     stop_event=None,
 ) -> None:
@@ -248,8 +248,15 @@ def run_fetch(
                         "SELECT COUNT(*) FROM fetch_queue WHERE status='pending'"
                     ).fetchone()[0]
                     eta = pending_count / rate if rate > 0 else float("inf")
+                    eta_str = ""
+                    if rate > 0 and pending_count > 0:
+                        m, s = divmod(int(eta), 60)
+                        h, m = divmod(m, 60)
+                        eta_str = f" · ETA {h}h {m}m" if h else f" · ETA {m}m {s}s"
+                    rate_str = f" · {rate:.1f} msg/s" if rate else ""
                     logger.info(
-                        "Progress",
+                        "Downloaded %d, %d pending%s%s",
+                        total_done, pending_count, rate_str, eta_str,
                         extra={
                             "done": total_done,
                             "rate_per_sec": round(rate, 1),
