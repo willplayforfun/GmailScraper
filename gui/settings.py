@@ -19,8 +19,8 @@ def exe_dir() -> Path:
 @dataclass
 class Settings:
     data_dir: str | None = None          # None → default (exe_dir/data)
-    batch_size: int = 50
-    max_concurrency: int = 1
+    batch_size: int = 7
+    max_concurrency: int = 3
     include_spam_trash: bool = False
     email: str = ""                      # cached after first successful auth
 
